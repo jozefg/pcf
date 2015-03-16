@@ -40,7 +40,10 @@ instance Monad Exp where
   Suc e >>= f = Suc (e >>= f)
   Zero >>= _ = Zero
 
-{- Type checking 'n stuff -}
+--------------------------------------------------------
+--------------- Type Checking --------------------------
+--------------------------------------------------------
+
 type TyM a = GenT a Maybe
 
 assertTy :: (Enum a, Ord a) => M.Map a Ty -> Exp a -> Ty -> TyM a ()
@@ -64,11 +67,14 @@ typeCheck env (Fix t bind) = do
 typeOf :: Exp Void -> Maybe Ty
 typeOf = runGenT . typeCheck M.empty . fmap (absurd :: Void -> Integer)
 
+--------------------------------------------------------
+--------------- Closure Conversion ---------------------
+--------------------------------------------------------
+
 -- Invariant, Clos only contains VCs, can't be enforced statically due
 -- to annoying monad instance
 type Clos a = [ExpC a]
 
-{- Closure Conversion -}
 data ExpC a = VC a
             | AppC (ExpC a) (ExpC a)
             | LamC Ty (Clos a) (Scope Int ExpC a)
@@ -110,7 +116,10 @@ closConv (Lam t bind) = do
                   guard (v' == v) *> (Just $ length freeVars)
   return $ LamC t (map VC freeVars) (abstract rebind body)
 
-{- Lambda + Fixpoint lifting -}
+--------------------------------------------------------
+--------------- Lambda + Fixpoint lifting --------------
+--------------------------------------------------------
+
 data BindL a = RecL Ty [ExpL a] (Scope Int ExpL a)
              | NRecL Ty [ExpL a] (Scope Int ExpL a)
              deriving (Eq, Functor, Foldable, Traversable)
