@@ -6,6 +6,7 @@ import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Gen
 import           Control.Monad.Trans
+import           Control.Monad.Writer
 import           Data.Foldable
 import           Data.List           (elemIndex)
 import qualified Data.Map            as M
@@ -133,7 +134,7 @@ closConv (Lam t bind) = do
 --------------------------------------------------------
 --------------- Lambda + Fixpoint lifting --------------
 --------------------------------------------------------
-
+data BindSort = Fn | Y
 data BindL a = RecL Ty [ExpL a] (Scope Int ExpL a)
              | NRecL Ty [ExpL a] (Scope Int ExpL a)
              deriving (Eq, Functor, Foldable, Traversable)
@@ -189,7 +190,7 @@ llift (FixC t clos bind) = do
 --------------- Conversion to Faux-C -------------------
 --------------------------------------------------------
 
--- Invariant: the integer part of a FauxCTop is a globally unique
+-- Invariant: the Integer part of a FauxCTop is a globally unique
 -- identifier that will be used as a name for that binding.
 data FauxCTop a = FauxCTop Integer (Scope Int FauxC a)
                 deriving (Eq, Functor, Foldable, Traversable)
@@ -218,3 +219,30 @@ instance Monad FauxC where
   LetFC binds body >>= f = LetFC (map go binds) (body >>>= f)
     where go (NRecFC i es) = RecFC i (map (>>= f) es)
           go (RecFC i es) = NRecFC i (map (>>= f) es)
+
+type FauxCM a = WriterT [FauxCTop a] (Gen a)
+
+fauxc :: ExpL Integer -> FauxCM Integer (FauxC Integer)
+fauxc (VL a) = return (VFC a)
+fauxc (AppL f a) = AppFC <$> fauxc f <*> fauxc a
+fauxc ZeroL = return ZeroFC
+fauxc (SucL e) = SucFC <$> fauxc e
+fauxc (IfzL i t e) = do
+  v <- gen
+  e' <- abstract1 v <$> fauxc (instantiate1 (VL v) e)
+  IfzFC <$> fauxc i <*> fauxc t <*> return e'
+fauxc (LetL binds e) = do
+  binds' <- mapM liftBinds binds
+  vs <- replicateM (length binds) gen
+  body <- fauxc $ instantiate (VL . (!!) vs) e
+  let e' = abstract (flip elemIndex vs) body
+  return (LetFC binds' e')
+  where lifter bindingConstr clos bind = do
+          guid <- gen
+          vs <- replicateM (length binds + 1) gen
+          body <- fauxc $ instantiate (VL . (!!) vs) bind
+          let bind' = abstract (flip elemIndex vs) body
+          tell [FauxCTop guid bind']
+          bindingConstr guid <$> mapM fauxc clos
+        liftBinds (NRecL _ clos bind) = lifter NRecFC clos bind
+        liftBinds (RecL _ clos bind) = lifter RecFC clos bind
