@@ -184,3 +184,37 @@ llift (FixC t clos bind) = do
   clos' <- mapM llift clos
   let bind' = abstract (flip elemIndex vs) body
   return (LetL [RecL t clos' bind'] trivLetBody)
+
+--------------------------------------------------------
+--------------- Conversion to Faux-C -------------------
+--------------------------------------------------------
+
+-- Invariant: the integer part of a FauxCTop is a globally unique
+-- identifier that will be used as a name for that binding.
+data FauxCTop a = FauxCTop Integer (Scope Int FauxC a)
+                deriving (Eq, Functor, Foldable, Traversable)
+data BindFC a = NRecFC Integer [FauxC a]
+              | RecFC Integer [FauxC a]
+              deriving (Eq, Functor, Foldable, Traversable)
+data FauxC a = VFC a
+             | AppFC (FauxC a) (FauxC a)
+             | IfzFC (FauxC a) (FauxC a) (Scope () FauxC a)
+             | LetFC [BindFC a] (Scope Int FauxC a)
+             | SucFC (FauxC a)
+             | ZeroFC
+             deriving (Eq, Functor, Foldable, Traversable)
+
+instance Eq1 FauxC where
+instance Applicative FauxC where
+  pure = return
+  (<*>) = ap
+instance Monad FauxC where
+  return = VFC
+  VFC a >>= f = f a
+  AppFC l r >>= f = AppFC (l >>= f) (r >>= f)
+  SucFC e >>= f = SucFC (e >>= f)
+  ZeroFC >>= _ = ZeroFC
+  IfzFC i t e >>= f = IfzFC (i >>= f) (t >>= f) (e >>>= f)
+  LetFC binds body >>= f = LetFC (map go binds) (body >>>= f)
+    where go (NRecFC i es) = RecFC i (map (>>= f) es)
+          go (RecFC i es) = NRecFC i (map (>>= f) es)
