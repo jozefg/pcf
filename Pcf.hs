@@ -21,6 +21,7 @@ data Ty = Arr Ty Ty
 
 data Exp a = V a
            | App (Exp a) (Exp a)
+           | Ifz (Exp a) (Exp a) (Scope () Exp a)
            | Lam Ty (Scope () Exp a)
            | Fix Ty (Scope () Exp a)
            | Suc (Exp a)
@@ -37,6 +38,7 @@ instance Monad Exp where
   App l r >>= f = App (l >>= f) (r >>= f)
   Lam t body >>= f = Lam t (body >>>= f)
   Fix t body >>= f = Fix t (body >>>= f)
+  Ifz i t e >>= f = Ifz (i >>= f) (t >>= f) (e >>>= f)
   Suc e >>= f = Suc (e >>= f)
   Zero >>= _ = Zero
 
@@ -50,7 +52,7 @@ assertTy :: (Enum a, Ord a) => M.Map a Ty -> Exp a -> Ty -> TyM a ()
 assertTy env e t = (== t) <$> typeCheck env e >>= guard
 
 typeCheck :: (Enum a, Ord a) => M.Map a Ty -> Exp a -> TyM a Ty
-typeCheck env Zero = return Nat
+typeCheck _   Zero = return Nat
 typeCheck env (Suc e) = assertTy env e Nat >> return Nat
 typeCheck env (V a) = lift (M.lookup a env)
 typeCheck env (App f a) = typeCheck env f >>= \case
@@ -63,6 +65,12 @@ typeCheck env (Fix t bind) = do
   v <- gen
   assertTy (M.insert v t env) (instantiate1 (V v) bind) t
   return t
+typeCheck env (Ifz i t e) = do
+  assertTy env i Nat
+  ty <- typeCheck env t
+  v <- gen
+  assertTy (M.insert v Nat env) (instantiate1 (V v) e) ty
+  return ty
 
 typeOf :: Exp Void -> Maybe Ty
 typeOf = runGenT . typeCheck M.empty . fmap (absurd :: Void -> Integer)
@@ -79,6 +87,7 @@ data ExpC a = VC a
             | AppC (ExpC a) (ExpC a)
             | LamC Ty (Clos a) (Scope Int ExpC a)
             | FixC Ty (Clos a) (Scope Int ExpC a)
+            | IfzC (ExpC a) (ExpC a) (Scope () ExpC a)
             | SucC (ExpC a)
             | ZeroC
             deriving (Eq, Functor, Foldable, Traversable)
@@ -93,6 +102,7 @@ instance Monad ExpC where
   AppC l r >>= f = AppC (l >>= f) (r >>= f)
   LamC t clos body >>= f = LamC t (map (>>= f) clos) (body >>>= f)
   FixC t clos body >>= f = FixC t (map (>>= f) clos) (body >>>= f)
+  IfzC i t e >>= f = IfzC (i >>= f) (t >>= f) (e >>>= f)
   SucC e >>= f = SucC (e >>= f)
   ZeroC >>= _ = ZeroC
 
@@ -101,6 +111,10 @@ closConv (V a) = return (VC a)
 closConv Zero = return ZeroC
 closConv (Suc e) = SucC <$> closConv e
 closConv (App f a) = AppC <$> closConv f <*> closConv a
+closConv (Ifz i t e) = do
+  v <- gen
+  e' <- abstract1 v <$> closConv (instantiate1 (V v) e)
+  IfzC <$> closConv i <*> closConv t <*> return e'
 closConv (Fix t bind) = do
   v <- gen
   body <- closConv (instantiate1 (V v) bind)
@@ -126,6 +140,7 @@ data BindL a = RecL Ty [ExpL a] (Scope Int ExpL a)
 data ExpL a = VL a
             | AppL (ExpL a) (ExpL a)
             | LetL [BindL a] (Scope Int ExpL a)
+            | IfzL (ExpL a) (ExpL a) (Scope () ExpL a)
             | SucL (ExpL a)
             | ZeroL
             deriving (Eq, Functor, Foldable, Traversable)
@@ -140,6 +155,7 @@ instance Monad ExpL where
   AppL l r >>= f = AppL (l >>= f) (r >>= f)
   SucL e >>= f = SucL (e >>= f)
   ZeroL >>= _ = ZeroL
+  IfzL i t e >>= f = IfzL (i >>= f) (t >>= f) (e >>>= f)
   LetL binds body >>= f = LetL (map go binds) (body >>>= f)
     where go (RecL t es scope) = RecL t (map (>>= f) es) (scope >>>= f)
           go (NRecL t es scope) = NRecL t (map (>>= f) es) (scope >>>= f)
@@ -152,6 +168,10 @@ llift (VC a) = return (VL a)
 llift ZeroC = return ZeroL
 llift (SucC e) = SucL <$> llift e
 llift (AppC f a) = AppL <$> llift f <*> llift a
+llift (IfzC i t e) = do
+  v <- gen
+  e' <- abstract1 v <$> llift (instantiate1 (VC v) e)
+  IfzL <$> llift i <*> llift t <*> return e'
 llift (LamC t clos bind) = do
   vs <- replicateM (length clos + 1) gen
   body <- llift $ instantiate (VC . (!!) vs) bind
