@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 module Pcf where
 import           Bound
 import           Control.Applicative
@@ -12,7 +12,9 @@ import           Data.List           (elemIndex)
 import qualified Data.Map            as M
 import           Data.Maybe          (fromJust)
 import qualified Data.Set            as S
+import           Data.String
 import           Data.Traversable    hiding (mapM)
+import           Language.C.DSL
 import           Data.Void
 import           Prelude.Extras
 
@@ -246,3 +248,38 @@ fauxc (LetL binds e) = do
           bindingConstr guid <$> mapM fauxc clos
         liftBinds (NRecL _ clos bind) = lifter NRecFC clos bind
         liftBinds (RecL _ clos bind) = lifter RecFC clos bind
+
+--------------------------------------------------------
+--------------- Conversion to Real C -------------------
+--------------------------------------------------------
+type RealCM = WriterT [CBlockItem] (Gen Int)
+
+i2d :: Int -> CDeclr
+i2d = fromString . ('_':) . show
+
+i2e :: Int -> CExpr
+i2e = var . fromString . ('_':) . show
+
+tellDecl :: CExpr -> RealCM CExpr
+tellDecl e = do
+  i <- gen
+  tell [CBlockDecl $ decl voidTy (ptr $ i2d i) $ Just e]
+  return (i2e i)
+
+realc :: FauxC CExpr -> RealCM CExpr
+realc (VFC e) = return e
+realc (AppFC f a) = ("apply" #) <$> mapM realc [f, a] >>= tellDecl
+realc ZeroFC = tellDecl ("mkZero" # [])
+realc (SucFC e) = realc e >>= tellDecl . (1 + ) . star
+realc (IfzFC i t e) = do
+  outi <- realc i
+  deci <- tellDecl (outi - 1)
+  let e' = instantiate1 (VFC deci) e
+  (outt, blockt) <- listen (realc t)
+  (oute, blocke) <- listen (realc e')
+  out <- tellDecl 0
+  let ifBranch block output =
+        CCompound [] (block ++ [CBlockStmt . liftE $ out <-- output]) undefNode
+      ifStat = cifElse outi (ifBranch blockt outt) (ifBranch blocke oute)
+  tell [CBlockStmt ifStat]
+  return out
