@@ -195,7 +195,8 @@ llift (FixC t clos bind) = do
 -- Invariant: the Integer part of a FauxCTop is a globally unique
 -- identifier that will be used as a name for that binding.
 data IsRec = IsRec | NotRec deriving Eq
-data FauxCTop a = FauxCTop IsRec Integer (Scope Int FauxC a)
+type NumArgs = Int
+data FauxCTop a = FauxCTop IsRec Integer NumArgs (Scope Int FauxC a)
                 deriving (Eq, Functor, Foldable, Traversable)
 data BindFC a = NRecFC Integer [FauxC a]
               | RecFC Integer [FauxC a]
@@ -240,19 +241,22 @@ fauxc (LetL binds e) = do
   body <- fauxc $ instantiate (VL . (!!) vs) e
   let e' = abstract (flip elemIndex vs) body
   return (LetFC binds' e')
-  where lifter bindingConstr isRec clos bind = do
+  where lifter bindingConstr isRec numArgs clos bind = do
           guid <- gen
           vs <- replicateM (length binds + 1) gen
           body <- fauxc $ instantiate (VL . (!!) vs) bind
           let bind' = abstract (flip elemIndex vs) body
-          tell [FauxCTop isRec guid bind']
+          tell [FauxCTop isRec guid (length clos + 1) bind']
           bindingConstr guid <$> mapM fauxc clos
-        liftBinds (NRecL _ clos bind) = lifter NRecFC NotRec clos bind
-        liftBinds (RecL _ clos bind) = lifter RecFC IsRec clos bind
+        liftBinds (NRecL _ clos bind) =
+          lifter NRecFC NotRec (length clos + 1) clos bind
+        liftBinds (RecL _ clos bind) =
+          lifter RecFC IsRec (length clos) clos bind
 
 --------------------------------------------------------
 --------------- Conversion to Real C -------------------
 --------------------------------------------------------
+
 type RealCM = WriterT [CBlockItem] (Gen Integer)
 
 i2d :: Integer -> CDeclr
@@ -287,5 +291,17 @@ realc (IfzFC i t e) = do
 realc (LetFC binds bind) = do
   bindings <- mapM goBind binds
   realc $ instantiate (VFC . (bindings !!)) bind
-  where goBind (NRecFC i clos) = ("mkClos" #) <$> (i2e i:) <$> mapM realc clos
-        goBind (RecFC i clos) = (i2e i #) <$> mapM realc clos
+  where goBind (NRecFC i cs) = ("mkClos" #) <$> (i2e i:) <$> mapM realc cs
+        goBind (RecFC i cs) = (i2e i #) <$> mapM realc cs
+
+topc :: FauxCTop CExpr -> Gen Integer CFunDef
+topc (FauxCTop isRec i numArgs body) = do
+  binds <- replicateM numArgs gen
+  (out, block) <- runWriterT . realc $ instantiate (args binds isRec!!) body
+  let funbody =
+        CCompound [] (block ++ [CBlockStmt . creturn $ out]) undefNode
+  return $ fun [voidTy] (show $ i2d i) (argSpec binds) funbody
+  where argSpec binds = map (decl voidTy . ptr . i2d) binds
+        args binds NotRec = map (VFC . i2e) binds
+        args binds IsRec = let exps = map i2e binds in
+                            map VFC $ exps ++ [i2e i # exps]
