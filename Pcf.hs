@@ -278,12 +278,13 @@ realc (IfzFC i t e) = do
   outi <- realc i
   deci <- tellDecl (outi - 1)
   let e' = instantiate1 (VFC deci) e
-  (outt, blockt) <- listen (realc t)
-  (oute, blocke) <- listen (realc e')
+  (outt, blockt) <- lift . runWriterT $ (realc t)
+  (oute, blocke) <- lift . runWriterT $ (realc e')
   out <- tellDecl 0
   let ifBranch block output =
         CCompound [] (block ++ [CBlockStmt . liftE $ out <-- output]) undefNode
-      ifStat = cifElse outi (ifBranch blockt outt) (ifBranch blocke oute)
+      ifStat =
+        cifElse (outi ==: 0) (ifBranch blockt outt) (ifBranch blocke oute)
   tell [CBlockStmt ifStat]
   return out
 realc (LetFC binds bind) = do
@@ -305,9 +306,8 @@ topc (FauxCTop isRec i numArgs body) = do
                             map VFC $ exps ++ [i2e i # exps]
         mkPtrFun (CFunDef ss decl as by a) = CFunDef ss (ptr decl) as by a
 
-compile :: Exp Void -> Maybe CTranslUnit
-compile prog = runGen . runMaybeT $ do
-  let e = fmap (absurd :: Void -> Integer) prog
+compile :: Exp Integer -> Maybe CTranslUnit
+compile e = runGen . runMaybeT $ do
   ty <- typeCheck M.empty e
   when (ty /= Nat) mzero
   funs <- lift $ pipe e
