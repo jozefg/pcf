@@ -272,11 +272,11 @@ tellDecl e = do
 realc :: FauxC CExpr -> RealCM CExpr
 realc (VFC e) = return e
 realc (AppFC f a) = ("apply" #) <$> mapM realc [f, a] >>= tellDecl
-realc ZeroFC = tellDecl ("mkZero" # [])
-realc (SucFC e) = realc e >>= tellDecl . (1 + ) . star
+realc ZeroFC = tellDecl $ "mkZero" # []
+realc (SucFC e) = realc e >>= tellDecl . ("inc"#) . (:[])
 realc (IfzFC i t e) = do
   outi <- realc i
-  deci <- tellDecl (outi - 1)
+  deci <- tellDecl ("dec" # [outi])
   let e' = instantiate1 (VFC deci) e
   (outt, blockt) <- lift . runWriterT $ (realc t)
   (oute, blocke) <- lift . runWriterT $ (realc e')
@@ -284,7 +284,7 @@ realc (IfzFC i t e) = do
   let ifBranch block output =
         CCompound [] (block ++ [CBlockStmt . liftE $ out <-- output]) undefNode
       ifStat =
-        cifElse (outi ==: 0) (ifBranch blockt outt) (ifBranch blocke oute)
+        cifElse ("isZero"#[outi]) (ifBranch blockt outt) (ifBranch blocke oute)
   tell [CBlockStmt ifStat]
   return out
 realc (LetFC binds bind) = do
@@ -299,7 +299,7 @@ topc (FauxCTop isRec i numArgs body) = do
   (out, block) <- runWriterT . realc $ instantiate (args binds isRec!!) body
   let funbody =
         CCompound [] (block ++ [CBlockStmt . creturn $ out]) undefNode
-  return . mkPtrFun $ fun [voidTy] (show $ i2d i) (argSpec binds) funbody
+  return . mkPtrFun $ fun [voidTy] ('_' : show i) (argSpec binds) funbody
   where argSpec binds = map (decl voidTy . ptr . i2d) binds
         args binds NotRec = map (VFC . i2e) binds
         args binds IsRec = let exps = map i2e binds in
@@ -319,3 +319,8 @@ compile e = runGen . runMaybeT $ do
           let topMain = FauxCTop NotRec i 0 (abstract (const Nothing) main)
               funs' = map (i2e <$>) (topMain : funs)
           mapM topc funs'
+
+output :: Exp Integer -> IO ()
+output e = case compile e of
+  Nothing -> putStrLn "It didn't compile"
+  Just p  -> print . pretty $ p
