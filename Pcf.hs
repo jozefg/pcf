@@ -281,10 +281,10 @@ realc (IfzFC i t e) = do
   (outt, blockt) <- lift . runWriterT $ (realc t)
   (oute, blocke) <- lift . runWriterT $ (realc e')
   out <- tellDecl 0
-  let ifBranch block output =
+  let branch block output =
         CCompound [] (block ++ [CBlockStmt . liftE $ out <-- output]) undefNode
       ifStat =
-        cifElse ("isZero"#[outi]) (ifBranch blockt outt) (ifBranch blocke oute)
+        cifElse ("isZ"#[outi]) (branch blockt outt) (branch blocke oute)
   tell [CBlockStmt ifStat]
   return out
 realc (LetFC binds bind) = do
@@ -294,20 +294,24 @@ realc (LetFC binds bind) = do
           ("mkClos" #) <$> (i2e i:) <$> mapM realc cs >>= tellDecl
         goBind (RecFC i cs) = (i2e i #) <$> mapM realc cs >>= tellDecl
 
+mkPtrFun :: CFunDef -> CFunDef
+mkPtrFun (CFunDef ss dec as by a) = CFunDef ss (addPtr dec) as by a
+  where addPtr (CDeclr i ds strs attrs a) =
+          CDeclr i (ds ++ [CPtrDeclr [] a]) strs attrs a
+
 topc :: FauxCTop CExpr -> Gen Integer CFunDef
 topc (FauxCTop isRec i numArgs body) = do
-  binds <- replicateM numArgs gen
-  (out, block) <- runWriterT . realc $ instantiate (args binds isRec!!) body
-  let funbody =
-        CCompound [] (block ++ [CBlockStmt . creturn $ out]) undefNode
-  return . mkPtrFun $ fun [voidTy] ('_' : show i) (argSpec binds) funbody
-  where argSpec binds = map (decl voidTy . ptr . i2d) binds
-        args binds NotRec = map (VFC . i2e) binds
-        args binds IsRec = let exps = map i2e binds in
-                            map VFC $ exps ++ [i2e i # exps]
-        mkPtrFun (CFunDef ss dec as by a) = CFunDef ss (addPtr dec) as by a
-        addPtr (CDeclr i ds strs attrs a) =
-          CDeclr i (ds ++ [CPtrDeclr [] a]) strs attrs a
+  binds <- gen
+  let getArg = (!!) (args (i2e binds) numArgs isRec)
+  (out, block) <- runWriterT . realc $ instantiate getArg body
+  return . mkPtrFun $
+    fun [voidTy] ('_' : show i) [decl voidTy $ ptr (i2d binds)] $
+      CCompound [] (block ++ [CBlockStmt . creturn $ out]) undefNode
+  where indexArg binds i = binds ! i2e (toInteger i)
+        args binds na NotRec = map (VFC . indexArg binds) [0..na - 1]
+        args binds na IsRec =
+          let exps = map (indexArg binds) [0..na - 2] in
+           map VFC $ exps ++ [i2e i # [binds]]
 
 compile :: Exp Integer -> Maybe CTranslUnit
 compile e = runGen . runMaybeT $ do
@@ -319,7 +323,7 @@ compile e = runGen . runMaybeT $ do
           simplified <- closConv e >>= llift
           (main, funs) <- runWriterT $ fauxc simplified
           i <- gen
-          let topMain = FauxCTop NotRec i 0 (abstract (const Nothing) main)
+          let topMain = FauxCTop NotRec i 1 (abstract (const Nothing) main)
               funs' = map (i2e <$>) (funs ++ [topMain])
           (++ [makeCMain i]) <$> mapM topc funs'
         makeCMain entry =
