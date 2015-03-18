@@ -107,7 +107,7 @@ instance Monad ExpC where
   SucC e >>= f = SucC (e >>= f)
   ZeroC >>= _ = ZeroC
 
-closConv :: (Eq a, Ord a, Enum a) => Exp a -> Gen a (ExpC a)
+closConv :: (Show a, Eq a, Ord a, Enum a) => Exp a -> Gen a (ExpC a)
 closConv (V a) = return (VC a)
 closConv Zero = return ZeroC
 closConv (Suc e) = SucC <$> closConv e
@@ -121,14 +121,14 @@ closConv (Fix t bind) = do
   body <- closConv (instantiate1 (V v) bind)
   let freeVars = S.toList . S.delete v $ foldMap S.singleton body
       rebind v' = elemIndex v' freeVars <|>
-                  guard (v' == v) *> (Just $ length freeVars)
+                  (guard (v' == v) *> (Just $ length freeVars))
   return $ FixC t (map VC freeVars) (abstract rebind body)
 closConv (Lam t bind) = do
   v <- gen
   body <- closConv (instantiate1 (V v) bind)
   let freeVars = S.toList . S.delete v $ foldMap S.singleton body
       rebind v' = elemIndex v' freeVars <|>
-                  guard (v' == v) *> (Just $ length freeVars)
+                  (guard (v' == v) *> (Just $ length freeVars))
   return $ LamC t (map VC freeVars) (abstract rebind body)
 
 --------------------------------------------------------
@@ -179,7 +179,7 @@ llift (LamC t clos bind) = do
   clos' <- mapM llift clos
   let bind' = abstract (flip elemIndex vs) body
   return (LetL [NRecL t clos' bind'] trivLetBody)
-llift (FixC t clos bind) = do
+llift e@(FixC t clos bind) = do
   vs <- replicateM (length clos + 1) gen
   body <- llift $ instantiate (VC . (!!) vs) bind
   clos' <- mapM llift clos
@@ -241,7 +241,7 @@ fauxc (LetL binds e) = do
   return (LetFC binds' e')
   where lifter bindingConstr isRec numArgs clos bind = do
           guid <- gen
-          vs <- replicateM (length binds + 1) gen
+          vs <- replicateM (length clos + 1) gen
           body <- fauxc $ instantiate (VL . (!!) vs) bind
           let bind' = abstract (flip elemIndex vs) body
           tell [FauxCTop isRec guid (length clos + 1) bind']
@@ -284,7 +284,7 @@ realc (IfzFC i t e) = do
   let branch block output =
         CCompound [] (block ++ [CBlockStmt . liftE $ out <-- output]) undefNode
       ifStat =
-        cifElse ("isZ"#[outi]) (branch blockt outt) (branch blocke oute)
+        cifElse ("isZero"#[outi]) (branch blockt outt) (branch blocke oute)
   tell [CBlockStmt ifStat]
   return out
 realc (LetFC binds bind) = do
@@ -294,7 +294,11 @@ realc (LetFC binds bind) = do
           ("mkClos" #) <$> (i2e i :) . (fromIntegral (length cs) :)
                        <$> mapM realc cs
                        >>= tellDecl
-        goBind (RecFC i cs) = (i2e i #) <$> mapM realc cs >>= tellDecl
+        goBind (RecFC i cs) = do
+          f <- ("mkClos" #) <$> (i2e i :) . (fromIntegral (length cs) :)
+                            <$> mapM realc cs
+                            >>= tellDecl
+          tellDecl ("apply"#[f, f])
 
 mkPtrFun :: CFunDef -> CFunDef
 mkPtrFun (CFunDef ss dec as by a) = CFunDef ss (addPtr dec) as by a

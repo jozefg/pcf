@@ -34,6 +34,10 @@ void *dec(void *i){
   return (void *) ptr;
 }
 
+int isZero(void *i){
+  return *((* int) i) == 0
+}
+
 void *mkClos(raw_fun f, int numArgs, ...){
   clos *c = malloc(sizeof(raw_fun));
   c->fun = f;
