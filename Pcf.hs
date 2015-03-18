@@ -192,9 +192,8 @@ llift e@(FixC t clos bind) = do
 
 -- Invariant: the Integer part of a FauxCTop is a globally unique
 -- identifier that will be used as a name for that binding.
-data IsRec = IsRec | NotRec deriving Eq
 type NumArgs = Int
-data FauxCTop a = FauxCTop IsRec Integer NumArgs (Scope Int FauxC a)
+data FauxCTop a = FauxCTop Integer NumArgs (Scope Int FauxC a)
                 deriving (Eq, Functor, Foldable, Traversable)
 data BindFC a = NRecFC Integer [FauxC a]
               | RecFC Integer [FauxC a]
@@ -239,17 +238,17 @@ fauxc (LetL binds e) = do
   body <- fauxc $ instantiate (VL . (!!) vs) e
   let e' = abstract (flip elemIndex vs) body
   return (LetFC binds' e')
-  where lifter bindingConstr isRec numArgs clos bind = do
+  where lifter bindingConstr numArgs clos bind = do
           guid <- gen
           vs <- replicateM (length clos + 1) gen
           body <- fauxc $ instantiate (VL . (!!) vs) bind
           let bind' = abstract (flip elemIndex vs) body
-          tell [FauxCTop isRec guid (length clos + 1) bind']
+          tell [FauxCTop guid (length clos + 1) bind']
           bindingConstr guid <$> mapM fauxc clos
         liftBinds (NRecL _ clos bind) =
-          lifter NRecFC NotRec (length clos + 1) clos bind
+          lifter NRecFC (length clos + 1) clos bind
         liftBinds (RecL _ clos bind) =
-          lifter RecFC IsRec (length clos) clos bind
+          lifter RecFC (length clos) clos bind
 
 --------------------------------------------------------
 --------------- Conversion to Real C -------------------
@@ -306,18 +305,15 @@ mkPtrFun (CFunDef ss dec as by a) = CFunDef ss (addPtr dec) as by a
           CDeclr i (ds ++ [CPtrDeclr [] a]) strs attrs a
 
 topc :: FauxCTop CExpr -> Gen Integer CFunDef
-topc (FauxCTop isRec i numArgs body) = do
+topc (FauxCTop i numArgs body) = do
   binds <- gen
-  let getArg = (!!) (args (i2e binds) numArgs isRec)
+  let getArg = (!!) (args (i2e binds) numArgs)
   (out, block) <- runWriterT . realc $ instantiate getArg body
   return . mkPtrFun $
     fun [voidTy] ('_' : show i) [decl voidTy . ptr . ptr $ i2d binds] $
       CCompound [] (block ++ [CBlockStmt . creturn $ out]) undefNode
   where indexArg binds i = binds ! fromIntegral i
-        args binds na NotRec = map (VFC . indexArg binds) [0..na - 1]
-        args binds na IsRec =
-          let exps = map (indexArg binds) [0..na - 2] in
-           map VFC $ exps ++ [i2e i # [binds]]
+        args binds na = map (VFC . indexArg binds) [0..na - 1]
 
 compile :: Exp Integer -> Maybe CTranslUnit
 compile e = runGen . runMaybeT $ do
@@ -329,7 +325,7 @@ compile e = runGen . runMaybeT $ do
           simplified <- closConv e >>= llift
           (main, funs) <- runWriterT $ fauxc simplified
           i <- gen
-          let topMain = FauxCTop NotRec i 1 (abstract (const Nothing) main)
+          let topMain = FauxCTop i 1 (abstract (const Nothing) main)
               funs' = map (i2e <$>) (funs ++ [topMain])
           (++ [makeCMain i]) <$> mapM topc funs'
         makeCMain entry =
