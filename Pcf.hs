@@ -290,8 +290,9 @@ realc (IfzFC i t e) = do
 realc (LetFC binds bind) = do
   bindings <- mapM goBind binds
   realc $ instantiate (VFC . (bindings !!)) bind
-  where goBind (NRecFC i cs) = ("mkClos" #) <$> (i2e i:) <$> mapM realc cs
-        goBind (RecFC i cs) = (i2e i #) <$> mapM realc cs
+  where goBind (NRecFC i cs) =
+          ("mkClos" #) <$> (i2e i:) <$> mapM realc cs >>= tellDecl
+        goBind (RecFC i cs) = (i2e i #) <$> mapM realc cs >>= tellDecl
 
 topc :: FauxCTop CExpr -> Gen Integer CFunDef
 topc (FauxCTop isRec i numArgs body) = do
