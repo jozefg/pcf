@@ -309,7 +309,7 @@ topc (FauxCTop isRec i numArgs body) = do
   return . mkPtrFun $
     fun [voidTy] ('_' : show i) [decl voidTy . ptr . ptr $ i2d binds] $
       CCompound [] (block ++ [CBlockStmt . creturn $ out]) undefNode
-  where indexArg binds i = binds ! i2e (toInteger i)
+  where indexArg binds i = binds ! fromIntegral i
         args binds na NotRec = map (VFC . indexArg binds) [0..na - 1]
         args binds na IsRec =
           let exps = map (indexArg binds) [0..na - 2] in
