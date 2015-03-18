@@ -300,8 +300,9 @@ topc (FauxCTop isRec i numArgs body) = do
   (out, block) <- runWriterT . realc $ instantiate (args binds isRec!!) body
   let funbody =
         CCompound [] (block ++ [CBlockStmt . creturn $ out]) undefNode
-  return $ fun [voidTy] (show $ i2d i) (argSpec binds) funbody
+  return . mkPtrFun $ fun [voidTy] (show $ i2d i) (argSpec binds) funbody
   where argSpec binds = map (decl voidTy . ptr . i2d) binds
         args binds NotRec = map (VFC . i2e) binds
         args binds IsRec = let exps = map i2e binds in
                             map VFC $ exps ++ [i2e i # exps]
+        mkPtrFun (CFunDef ss decl as by a) = CFunDef ss (ptr decl) as by a
