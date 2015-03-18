@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE LambdaCase, OverloadedStrings #-}
-module Pcf where
+module Pcf (Ty(..), Exp(..), compile, output) where
 import           Bound
 import           Control.Applicative
 import           Control.Monad
@@ -321,7 +321,11 @@ compile e = runGen . runMaybeT $ do
           i <- gen
           let topMain = FauxCTop NotRec i 0 (abstract (const Nothing) main)
               funs' = map (i2e <$>) (funs ++ [topMain])
-          mapM topc funs'
+          (++ [makeCMain i]) <$> mapM topc funs'
+        makeCMain entry =
+          fun [intTy] "main"[] $ block [
+            intoB $ "call"#[i2e entry]
+          ]
 
 output :: Exp Integer -> IO ()
 output e = case compile e of
