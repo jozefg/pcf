@@ -291,7 +291,9 @@ realc (LetFC binds bind) = do
   bindings <- mapM goBind binds
   realc $ instantiate (VFC . (bindings !!)) bind
   where goBind (NRecFC i cs) =
-          ("mkClos" #) <$> (i2e i:) <$> mapM realc cs >>= tellDecl
+          ("mkClos" #) <$> (i2e i :) . (fromIntegral (length cs) :)
+                       <$> mapM realc cs
+                       >>= tellDecl
         goBind (RecFC i cs) = (i2e i #) <$> mapM realc cs >>= tellDecl
 
 mkPtrFun :: CFunDef -> CFunDef
@@ -305,7 +307,7 @@ topc (FauxCTop isRec i numArgs body) = do
   let getArg = (!!) (args (i2e binds) numArgs isRec)
   (out, block) <- runWriterT . realc $ instantiate getArg body
   return . mkPtrFun $
-    fun [voidTy] ('_' : show i) [decl voidTy $ ptr (i2d binds)] $
+    fun [voidTy] ('_' : show i) [decl voidTy . ptr . ptr $ i2d binds] $
       CCompound [] (block ++ [CBlockStmt . creturn $ out]) undefNode
   where indexArg binds i = binds ! i2e (toInteger i)
         args binds na NotRec = map (VFC . indexArg binds) [0..na - 1]
