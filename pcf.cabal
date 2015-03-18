@@ -13,10 +13,11 @@ library
   exposed-modules:     Pcf
   build-depends:       base >=4.0 && <5
                      , bound
-                     , containers
                      , c-dsl
+                     , containers
                      , monad-gen
                      , mtl
                      , prelude-extras
+                     , transformers
                      , void
   default-language:    Haskell2010

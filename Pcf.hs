@@ -6,6 +6,7 @@ import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Gen
 import           Control.Monad.Trans
+import           Control.Monad.Trans.Maybe
 import           Control.Monad.Writer
 import           Data.Foldable
 import           Data.List           (elemIndex)
@@ -49,7 +50,7 @@ instance Monad Exp where
 --------------- Type Checking --------------------------
 --------------------------------------------------------
 
-type TyM a = GenT a Maybe
+type TyM a = MaybeT (Gen a)
 
 assertTy :: (Enum a, Ord a) => M.Map a Ty -> Exp a -> Ty -> TyM a ()
 assertTy env e t = (== t) <$> typeCheck env e >>= guard
@@ -57,7 +58,7 @@ assertTy env e t = (== t) <$> typeCheck env e >>= guard
 typeCheck :: (Enum a, Ord a) => M.Map a Ty -> Exp a -> TyM a Ty
 typeCheck _   Zero = return Nat
 typeCheck env (Suc e) = assertTy env e Nat >> return Nat
-typeCheck env (V a) = lift (M.lookup a env)
+typeCheck env (V a) = MaybeT . return $ M.lookup a env
 typeCheck env (App f a) = typeCheck env f >>= \case
   Arr fTy tTy -> assertTy env a fTy >> return tTy
   _ -> mzero
@@ -74,9 +75,6 @@ typeCheck env (Ifz i t e) = do
   v <- gen
   assertTy (M.insert v Nat env) (instantiate1 (V v) e) ty
   return ty
-
-typeOf :: Exp Void -> Maybe Ty
-typeOf = runGenT . typeCheck M.empty . fmap (absurd :: Void -> Integer)
 
 --------------------------------------------------------
 --------------- Closure Conversion ---------------------
@@ -306,3 +304,18 @@ topc (FauxCTop isRec i numArgs body) = do
         args binds IsRec = let exps = map i2e binds in
                             map VFC $ exps ++ [i2e i # exps]
         mkPtrFun (CFunDef ss decl as by a) = CFunDef ss (ptr decl) as by a
+
+compile :: Exp Void -> Maybe CTranslUnit
+compile prog = runGen . runMaybeT $ do
+  let e = fmap (absurd :: Void -> Integer) prog
+  ty <- typeCheck M.empty e
+  when (ty /= Nat) mzero
+  funs <- lift $ pipe e
+  return . transUnit . map export $ funs
+  where pipe e = do
+          simplified <- closConv e >>= llift
+          (main, funs) <- runWriterT $ fauxc simplified
+          i <- gen
+          let topMain = FauxCTop NotRec i 0 (abstract (const Nothing) main)
+              funs' = map (i2e <$>) (topMain : funs)
+          mapM topc funs'
