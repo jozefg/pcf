@@ -305,7 +305,9 @@ topc (FauxCTop isRec i numArgs body) = do
         args binds NotRec = map (VFC . i2e) binds
         args binds IsRec = let exps = map i2e binds in
                             map VFC $ exps ++ [i2e i # exps]
-        mkPtrFun (CFunDef ss decl as by a) = CFunDef ss (ptr decl) as by a
+        mkPtrFun (CFunDef ss dec as by a) = CFunDef ss (addPtr dec) as by a
+        addPtr (CDeclr i ds strs attrs a) =
+          CDeclr i (ds ++ [CPtrDeclr [] a]) strs attrs a
 
 compile :: Exp Integer -> Maybe CTranslUnit
 compile e = runGen . runMaybeT $ do
@@ -318,7 +320,7 @@ compile e = runGen . runMaybeT $ do
           (main, funs) <- runWriterT $ fauxc simplified
           i <- gen
           let topMain = FauxCTop NotRec i 0 (abstract (const Nothing) main)
-              funs' = map (i2e <$>) (topMain : funs)
+              funs' = map (i2e <$>) (funs ++ [topMain])
           mapM topc funs'
 
 output :: Exp Integer -> IO ()
