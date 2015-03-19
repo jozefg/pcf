@@ -16,7 +16,6 @@ import qualified Data.Set            as S
 import           Data.String
 import           Data.Traversable    hiding (mapM)
 import           Language.C.DSL
-import           Data.Void
 import           Prelude.Extras
 
 data Ty = Arr Ty Ty
@@ -262,10 +261,13 @@ i2d = fromString . ('_':) . show
 i2e :: Integer -> CExpr
 i2e = var . fromString . ('_':) . show
 
+sizedTy :: CDeclSpec
+sizedTy = CTypeSpec "sized_ptr"
+
 tellDecl :: CExpr -> RealCM CExpr
 tellDecl e = do
   i <- gen
-  tell [CBlockDecl $ decl voidTy (ptr $ i2d i) $ Just e]
+  tell [CBlockDecl $ decl sizedTy (i2d i) $ Just e]
   return (i2e i)
 
 realc :: FauxC CExpr -> RealCM CExpr
@@ -297,20 +299,15 @@ realc (LetFC binds bind) = do
           f <- ("mkClos" #) <$> (i2e i :) . (fromIntegral (length cs) :)
                             <$> mapM realc cs
                             >>= tellDecl
-          tellDecl ("apply"#[f, f])
-
-mkPtrFun :: CFunDef -> CFunDef
-mkPtrFun (CFunDef ss dec as by a) = CFunDef ss (addPtr dec) as by a
-  where addPtr (CDeclr i ds strs attrs a) =
-          CDeclr i (ds ++ [CPtrDeclr [] a]) strs attrs a
+          tellDecl ("fixedPoint"#[f])
 
 topc :: FauxCTop CExpr -> Gen Integer CFunDef
 topc (FauxCTop i numArgs body) = do
   binds <- gen
   let getArg = (!!) (args (i2e binds) numArgs)
   (out, block) <- runWriterT . realc $ instantiate getArg body
-  return . mkPtrFun $
-    fun [voidTy] ('_' : show i) [decl voidTy . ptr . ptr $ i2d binds] $
+  return $
+    fun [sizedTy] ('_' : show i) [decl sizedTy . ptr $ i2d binds] $
       CCompound [] (block ++ [CBlockStmt . creturn $ out]) undefNode
   where indexArg binds i = binds ! fromIntegral i
         args binds na = map (VFC . indexArg binds) [0..na - 1]
