@@ -18,8 +18,6 @@ typedef struct {
   sized_ptr *args;
 } clos;
 
-
-
 sized_ptr apply(sized_ptr fun, sized_ptr arg){
   clos *c = (clos *) fun.ptr;
   c->args[c->numArgs - 1] = arg;
@@ -81,7 +79,7 @@ sized_ptr fixedPoint(sized_ptr f){
   *sized_dummy.size = *res.size;
   /* This well be <= the current size of the block */
   void *new_ptr = realloc(sized_dummy.ptr, *sized_dummy.size);
-  if(new_ptr != sized_dummy.ptr) exit(1); // Impossible
+  if(new_ptr != sized_dummy.ptr) exit(1); // Impossible... I think.
   memcpy(sized_dummy.ptr, res.ptr, *sized_dummy.size);
 
   return res;

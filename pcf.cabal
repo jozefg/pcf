@@ -8,8 +8,10 @@ maintainer:          jozefg@cmu.edu
 category:            Compiler
 build-type:          Simple
 extra-source-files:  README.md
+                   , src/preamble.c
 cabal-version:       >=1.10
 library
+  hs-source-dirs:      src
   exposed-modules:     Pcf
   build-depends:       base >=4.0 && <5
                      , bound
