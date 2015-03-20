@@ -42,6 +42,8 @@ constructs,
    you can just desugar this to `fix $ \x : t -> ...`.
 
 
+## Example
+
 For a quick example of how this all hangs together, here is how you
 would define `plus` in PCF
 
