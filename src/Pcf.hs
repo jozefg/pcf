@@ -9,12 +9,12 @@ import           Control.Monad.Trans
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Writer
 import           Data.Foldable
-import           Data.List           (elemIndex)
-import qualified Data.Map            as M
-import           Data.Maybe          (fromJust)
-import qualified Data.Set            as S
+import           Data.List                 (elemIndex)
+import qualified Data.Map                  as M
+import           Data.Maybe                (fromJust)
+import qualified Data.Set                  as S
 import           Data.String
-import           Data.Traversable    hiding (mapM)
+import           Data.Traversable          hiding (mapM)
 import           Language.C.DSL
 import           Prelude.Extras
 
@@ -30,20 +30,6 @@ data Exp a = V a
            | Suc (Exp a)
            | Zero
            deriving (Eq, Functor, Foldable, Traversable)
-
-instance Eq1 Exp where
-instance Applicative Exp where
-  pure = return
-  (<*>) = ap
-instance Monad Exp where
-  return = V
-  V a >>= f = f a
-  App l r >>= f = App (l >>= f) (r >>= f)
-  Lam t body >>= f = Lam t (body >>>= f)
-  Fix t body >>= f = Fix t (body >>>= f)
-  Ifz i t e >>= f = Ifz (i >>= f) (t >>= f) (e >>>= f)
-  Suc e >>= f = Suc (e >>= f)
-  Zero >>= _ = Zero
 
 --------------------------------------------------------
 --------------- Type Checking --------------------------
@@ -92,20 +78,6 @@ data ExpC a = VC a
             | ZeroC
             deriving (Eq, Functor, Foldable, Traversable)
 
-instance Eq1 ExpC where
-instance Applicative ExpC where
-  pure = return
-  (<*>) = ap
-instance Monad ExpC where
-  return = VC
-  VC a >>= f = f a
-  AppC l r >>= f = AppC (l >>= f) (r >>= f)
-  LamC t clos body >>= f = LamC t (map (>>= f) clos) (body >>>= f)
-  FixC t clos body >>= f = FixC t (map (>>= f) clos) (body >>>= f)
-  IfzC i t e >>= f = IfzC (i >>= f) (t >>= f) (e >>>= f)
-  SucC e >>= f = SucC (e >>= f)
-  ZeroC >>= _ = ZeroC
-
 closConv :: (Show a, Eq a, Ord a, Enum a) => Exp a -> Gen a (ExpC a)
 closConv (V a) = return (VC a)
 closConv Zero = return ZeroC
@@ -133,6 +105,7 @@ closConv (Lam t bind) = do
 --------------------------------------------------------
 --------------- Lambda + Fixpoint lifting --------------
 --------------------------------------------------------
+
 data BindSort = Fn | Y
 data BindL a = RecL Ty [ExpL a] (Scope Int ExpL a)
              | NRecL Ty [ExpL a] (Scope Int ExpL a)
@@ -144,21 +117,6 @@ data ExpL a = VL a
             | SucL (ExpL a)
             | ZeroL
             deriving (Eq, Functor, Foldable, Traversable)
-
-instance Eq1 ExpL where
-instance Applicative ExpL where
-  pure = return
-  (<*>) = ap
-instance Monad ExpL where
-  return = VL
-  VL a >>= f = f a
-  AppL l r >>= f = AppL (l >>= f) (r >>= f)
-  SucL e >>= f = SucL (e >>= f)
-  ZeroL >>= _ = ZeroL
-  IfzL i t e >>= f = IfzL (i >>= f) (t >>= f) (e >>>= f)
-  LetL binds body >>= f = LetL (map go binds) (body >>>= f)
-    where go (RecL t es scope) = RecL t (map (>>= f) es) (scope >>>= f)
-          go (NRecL t es scope) = NRecL t (map (>>= f) es) (scope >>>= f)
 
 trivLetBody :: Scope Int ExpL a
 trivLetBody = fromJust . closed . abstract (const $ Just 0) $ VL ()
@@ -204,21 +162,6 @@ data FauxC a = VFC a
              | SucFC (FauxC a)
              | ZeroFC
              deriving (Eq, Functor, Foldable, Traversable)
-
-instance Eq1 FauxC where
-instance Applicative FauxC where
-  pure = return
-  (<*>) = ap
-instance Monad FauxC where
-  return = VFC
-  VFC a >>= f = f a
-  AppFC l r >>= f = AppFC (l >>= f) (r >>= f)
-  SucFC e >>= f = SucFC (e >>= f)
-  ZeroFC >>= _ = ZeroFC
-  IfzFC i t e >>= f = IfzFC (i >>= f) (t >>= f) (e >>>= f)
-  LetFC binds body >>= f = LetFC (map go binds) (body >>>= f)
-    where go (NRecFC i es) = RecFC i (map (>>= f) es)
-          go (RecFC i es) = NRecFC i (map (>>= f) es)
 
 type FauxCM a = WriterT [FauxCTop a] (Gen a)
 
@@ -282,8 +225,8 @@ realc (IfzFC i t e) = do
   (outt, blockt) <- lift . runWriterT $ (realc t)
   (oute, blocke) <- lift . runWriterT $ (realc e')
   out <- tellDecl "EMPTY"
-  let branch block output =
-        CCompound [] (block ++ [CBlockStmt . liftE $ out <-- output]) undefNode
+  let branch b out =
+        CCompound [] (b ++ [CBlockStmt . liftE $ out <-- out]) undefNode
       ifStat =
         cifElse ("isZero"#[outi]) (branch blockt outt) (branch blocke oute)
   tell [CBlockStmt ifStat]
@@ -307,7 +250,7 @@ topc (FauxCTop i numArgs body) = do
   let getArg = (!!) (args (i2e binds) numArgs)
   (out, block) <- runWriterT . realc $ instantiate getArg body
   return $
-    fun [sizedTy] ('_' : show i) [decl sizedTy . ptr $ i2d binds] $
+    fun [sizedTy] ('_' : show i) [decl sizedTy $ ptr (i2d binds)] $
       CCompound [] (block ++ [CBlockStmt . creturn $ out]) undefNode
   where indexArg binds i = binds ! fromIntegral i
         args binds na = map (VFC . indexArg binds) [0..na - 1]
@@ -326,11 +269,71 @@ compile e = runGen . runMaybeT $ do
               funs' = map (i2e <$>) (funs ++ [topMain])
           (++ [makeCMain i]) <$> mapM topc funs'
         makeCMain entry =
-          fun [intTy] "main"[] $ block [
-            intoB $ "call"#[i2e entry]
-          ]
+          fun [intTy] "main"[] $ hBlock ["call"#[i2e entry]]
 
 output :: Exp Integer -> IO ()
 output e = case compile e of
   Nothing -> putStrLn "It didn't compile"
   Just p  -> print . pretty $ p
+
+-------------------------------------------------------------------
+------------------- Extremely Boring Instances --------------------
+-------------------------------------------------------------------
+
+instance Eq1 Exp where
+instance Applicative Exp where
+  pure = return
+  (<*>) = ap
+instance Monad Exp where
+  return = V
+  V a >>= f = f a
+  App l r >>= f = App (l >>= f) (r >>= f)
+  Lam t body >>= f = Lam t (body >>>= f)
+  Fix t body >>= f = Fix t (body >>>= f)
+  Ifz i t e >>= f = Ifz (i >>= f) (t >>= f) (e >>>= f)
+  Suc e >>= f = Suc (e >>= f)
+  Zero >>= _ = Zero
+
+instance Eq1 ExpC where
+instance Applicative ExpC where
+  pure = return
+  (<*>) = ap
+instance Monad ExpC where
+  return = VC
+  VC a >>= f = f a
+  AppC l r >>= f = AppC (l >>= f) (r >>= f)
+  LamC t clos body >>= f = LamC t (map (>>= f) clos) (body >>>= f)
+  FixC t clos body >>= f = FixC t (map (>>= f) clos) (body >>>= f)
+  IfzC i t e >>= f = IfzC (i >>= f) (t >>= f) (e >>>= f)
+  SucC e >>= f = SucC (e >>= f)
+  ZeroC >>= _ = ZeroC
+
+instance Eq1 ExpL where
+instance Applicative ExpL where
+  pure = return
+  (<*>) = ap
+instance Monad ExpL where
+  return = VL
+  VL a >>= f = f a
+  AppL l r >>= f = AppL (l >>= f) (r >>= f)
+  SucL e >>= f = SucL (e >>= f)
+  ZeroL >>= _ = ZeroL
+  IfzL i t e >>= f = IfzL (i >>= f) (t >>= f) (e >>>= f)
+  LetL binds body >>= f = LetL (map go binds) (body >>>= f)
+    where go (RecL t es scope) = RecL t (map (>>= f) es) (scope >>>= f)
+          go (NRecL t es scope) = NRecL t (map (>>= f) es) (scope >>>= f)
+
+instance Eq1 FauxC where
+instance Applicative FauxC where
+  pure = return
+  (<*>) = ap
+instance Monad FauxC where
+  return = VFC
+  VFC a >>= f = f a
+  AppFC l r >>= f = AppFC (l >>= f) (r >>= f)
+  SucFC e >>= f = SucFC (e >>= f)
+  ZeroFC >>= _ = ZeroFC
+  IfzFC i t e >>= f = IfzFC (i >>= f) (t >>= f) (e >>>= f)
+  LetFC binds body >>= f = LetFC (map go binds) (body >>>= f)
+    where go (NRecFC i es) = RecFC i (map (>>= f) es)
+          go (RecFC i es) = NRecFC i (map (>>= f) es)
