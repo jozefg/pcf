@@ -281,7 +281,7 @@ realc (IfzFC i t e) = do
   let e' = instantiate1 (VFC deci) e
   (outt, blockt) <- lift . runWriterT $ (realc t)
   (oute, blocke) <- lift . runWriterT $ (realc e')
-  out <- tellDecl 0
+  out <- tellDecl "EMPTY"
   let branch block output =
         CCompound [] (block ++ [CBlockStmt . liftE $ out <-- output]) undefNode
       ifStat =
