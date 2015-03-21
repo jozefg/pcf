@@ -257,8 +257,7 @@ topc (FauxCTop i numArgs body) = do
 
 compile :: Exp Integer -> Maybe CTranslUnit
 compile e = runGen . runMaybeT $ do
-  ty <- typeCheck M.empty e
-  when (ty /= Nat) mzero
+  ty <- assertTy M.empty e Nat
   funs <- lift $ pipe e
   return . transUnit . map export $ funs
   where pipe e = do
