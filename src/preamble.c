@@ -20,7 +20,7 @@ typedef struct {
 } clos;
 
 sized_ptr apply(sized_ptr fun, sized_ptr arg){
-  if(fun.blackhole || arg.blackhole) exit(1);
+  if(*fun.blackhole || *arg.blackhole) exit(1);
 
   clos *c = (clos *) fun.ptr;
   c->args[c->numArgs - 1] = arg;
@@ -45,7 +45,7 @@ sized_ptr inc(sized_ptr i){
   size_t *sptr = malloc(sizeof(size_t));
   int *hole = malloc(sizeof(int));
 
-  if(i.blackhole) exit(1);
+  if(*i.blackhole) exit(1);
 
   *ptr = *((int *) i.ptr) + 1;
   *sptr = sizeof(int);
@@ -61,7 +61,7 @@ sized_ptr dec(sized_ptr i){
   size_t *sptr = malloc(sizeof(size_t));
   int *hole = malloc(sizeof(int));
 
-  if(i.blackhole) exit(1);
+  if(*i.blackhole) exit(1);
 
   *ptr = *((int *) i.ptr) - 1;
   *sptr = sizeof(int);
@@ -100,7 +100,10 @@ sized_ptr fixedPoint(sized_ptr f){
                            .ptr = malloc(sizeof(clos)),
                            .blackhole = hole};
   *hole = 1;
-  sized_ptr res = apply(f, sized_dummy);
+
+  clos *c = (clos *) f.ptr;
+  c->args[c->numArgs - 1] = sized_dummy;
+  sized_ptr res = c->fun(c->args);
 
   *sized_dummy.size = *res.size;
   memcpy(sized_dummy.ptr, res.ptr, *sized_dummy.size);
