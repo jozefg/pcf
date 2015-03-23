@@ -23,7 +23,7 @@ typedef struct {
 tagged_ptr apply(tagged_ptr fun, tagged_ptr arg){
   if(*fun.blackhole || *arg.blackhole) exit(1);
 
-  clos *c = (clos *) fun.ptr;
+  clos *c = fun.ptr;
   c->args[c->numArgs - 1] = arg;
   return c->fun(c->args);
 }
@@ -35,7 +35,7 @@ tagged_ptr mkZero(){
     *ptr = 0;
   *hole = 0;
 
-  tagged_ptr new_ptr = {.ptr = (void *) ptr, .blackhole = hole};
+  tagged_ptr new_ptr = {.ptr = ptr, .blackhole = hole};
   return new_ptr;
 }
 
@@ -48,7 +48,7 @@ tagged_ptr inc(tagged_ptr i){
   *ptr = *((int *) i.ptr) + 1;
   *hole = 0;
 
-  tagged_ptr new_ptr = {.ptr = (void *) ptr, .blackhole = hole};
+  tagged_ptr new_ptr = {.ptr = ptr, .blackhole = hole};
   return new_ptr;
 
 }
@@ -62,7 +62,7 @@ tagged_ptr dec(tagged_ptr i){
   *ptr = *((int *) i.ptr) - 1;
   *hole = 0;
 
-  tagged_ptr new_ptr = {.ptr = (void *) ptr, .blackhole = hole};
+  tagged_ptr new_ptr = {.ptr = ptr, .blackhole = hole};
   return new_ptr;
 }
 
@@ -83,17 +83,17 @@ tagged_ptr mkClos(raw_fun f, int numArgs, ...){
   va_start(l, numArgs);
   for(int i = 0; i < numArgs; ++i)
     c->args[i] = va_arg(l, tagged_ptr);
-  tagged_ptr new_ptr = {.ptr = (void *) c, .blackhole = hole};
+  tagged_ptr new_ptr = {.ptr = c, .blackhole = hole};
   return new_ptr;
 }
 
 tagged_ptr fixedPoint(tagged_ptr f, size_t i){
   int *hole = malloc(sizeof(int));
   tagged_ptr sized_dummy = {.ptr = malloc(i),
-                           .blackhole = hole};
+                            .blackhole = hole};
   *hole = 1;
 
-  clos *c = (clos *) f.ptr;
+  clos *c = f.ptr;
   c->args[c->numArgs - 1] = sized_dummy;
   tagged_ptr res = c->fun(c->args);
 
