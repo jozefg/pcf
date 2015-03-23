@@ -106,7 +106,6 @@ closConv (Lam t bind) = do
 --------------- Lambda + Fixpoint lifting --------------
 --------------------------------------------------------
 
-data BindSort = Fn | Y
 data BindL a = RecL Ty [ExpL a] (Scope Int ExpL a)
              | NRecL Ty [ExpL a] (Scope Int ExpL a)
              deriving (Eq, Functor, Foldable, Traversable)
@@ -182,7 +181,7 @@ fauxc (LetL binds e) = do
   body <- fauxc $ instantiate (VL . (!!) vs) e
   let e' = abstract (flip elemIndex vs) body
   return (LetFC binds' e')
-  where lifter bindingConstr numArgs clos bind = do
+  where lifter bindingConstr clos bind = do
           guid <- gen
           vs <- replicateM (length clos + 1) gen
           body <- fauxc $ instantiate (VL . (!!) vs) bind
@@ -191,10 +190,8 @@ fauxc (LetL binds e) = do
           bindingConstr guid <$> mapM fauxc clos
         bindTy (Arr _ _) = Clos
         bindTy Nat = Int
-        liftBinds (NRecL t clos bind) =
-          lifter NRecFC (length clos + 1) clos bind
-        liftBinds (RecL t clos bind) =
-          lifter (RecFC $ bindTy t) (length clos + 1) clos bind
+        liftBinds (NRecL t clos bind) = lifter NRecFC clos bind
+        liftBinds (RecL t clos bind) = lifter (RecFC $ bindTy t) clos bind
 
 --------------------------------------------------------
 --------------- Conversion to Real C -------------------
@@ -229,8 +226,8 @@ realc (IfzFC i t e) = do
   (outt, blockt) <- lift . runWriterT $ (realc t)
   (oute, blocke) <- lift . runWriterT $ (realc e')
   out <- tellDecl "EMPTY"
-  let branch b out =
-        CCompound [] (b ++ [CBlockStmt . liftE $ out <-- out]) undefNode
+  let branch b tempOut =
+        CCompound [] (b ++ [CBlockStmt . liftE $ out <-- tempOut]) undefNode
       ifStat =
         cifElse ("isZero"#[outi]) (branch blockt outt) (branch blocke oute)
   tell [CBlockStmt ifStat]

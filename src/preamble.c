@@ -3,7 +3,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-#define EMPTY {.size = NULL, .blackhole = NULL, .ptr = NULL}
+#define EMPTY {.blackhole = NULL, .ptr = NULL}
 #define INT_SIZE sizeof(int)
 #define CLOS_SIZE sizeof(clos)
 
