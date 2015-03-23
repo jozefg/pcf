@@ -150,10 +150,12 @@ llift e@(FixC t clos bind) = do
 -- Invariant: the Integer part of a FauxCTop is a globally unique
 -- identifier that will be used as a name for that binding.
 type NumArgs = Int
+data BindTy = Int | Clos deriving Eq
+
 data FauxCTop a = FauxCTop Integer NumArgs (Scope Int FauxC a)
                 deriving (Eq, Functor, Foldable, Traversable)
 data BindFC a = NRecFC Integer [FauxC a]
-              | RecFC Integer [FauxC a]
+              | RecFC BindTy Integer [FauxC a]
               deriving (Eq, Functor, Foldable, Traversable)
 data FauxC a = VFC a
              | AppFC (FauxC a) (FauxC a)
@@ -187,10 +189,12 @@ fauxc (LetL binds e) = do
           let bind' = abstract (flip elemIndex vs) body
           tell [FauxCTop guid (length clos + 1) bind']
           bindingConstr guid <$> mapM fauxc clos
-        liftBinds (NRecL _ clos bind) =
+        bindTy (Arr _ _) = Clos
+        bindTy Nat = Int
+        liftBinds (NRecL t clos bind) =
           lifter NRecFC (length clos + 1) clos bind
-        liftBinds (RecL _ clos bind) =
-          lifter RecFC (length clos) clos bind
+        liftBinds (RecL t clos bind) =
+          lifter (RecFC $ bindTy t) (length clos + 1) clos bind
 
 --------------------------------------------------------
 --------------- Conversion to Real C -------------------
@@ -234,15 +238,17 @@ realc (IfzFC i t e) = do
 realc (LetFC binds bind) = do
   bindings <- mapM goBind binds
   realc $ instantiate (VFC . (bindings !!)) bind
-  where goBind (NRecFC i cs) =
+  where sizeOf Int = "INT_SIZE"
+        sizeOf Clos = "CLOS_SIZE"
+        goBind (NRecFC i cs) =
           ("mkClos" #) <$> (i2e i :) . (fromIntegral (length cs) :)
                        <$> mapM realc cs
                        >>= tellDecl
-        goBind (RecFC i cs) = do
+        goBind (RecFC t i cs) = do
           f <- ("mkClos" #) <$> (i2e i :) . (fromIntegral (length cs) :)
                             <$> mapM realc cs
                             >>= tellDecl
-          tellDecl ("fixedPoint"#[f])
+          tellDecl ("fixedPoint"#[f, sizeOf t])
 
 topc :: FauxCTop CExpr -> Gen Integer CFunDef
 topc (FauxCTop i numArgs body) = do
@@ -334,5 +340,5 @@ instance Monad FauxC where
   ZeroFC >>= _ = ZeroFC
   IfzFC i t e >>= f = IfzFC (i >>= f) (t >>= f) (e >>>= f)
   LetFC binds body >>= f = LetFC (map go binds) (body >>>= f)
-    where go (NRecFC i es) = RecFC i (map (>>= f) es)
-          go (RecFC i es) = NRecFC i (map (>>= f) es)
+    where go (NRecFC i es) = NRecFC i (map (>>= f) es)
+          go (RecFC t i es) = RecFC t i (map (>>= f) es)
