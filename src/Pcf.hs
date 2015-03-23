@@ -37,10 +37,10 @@ data Exp a = V a
 
 type TyM a = MaybeT (Gen a)
 
-assertTy :: (Enum a, Ord a) => M.Map a Ty -> Exp a -> Ty -> TyM a ()
+assertTy :: Ord a => M.Map a Ty -> Exp a -> Ty -> TyM a ()
 assertTy env e t = (== t) <$> typeCheck env e >>= guard
 
-typeCheck :: (Enum a, Ord a) => M.Map a Ty -> Exp a -> TyM a Ty
+typeCheck :: Ord a => M.Map a Ty -> Exp a -> TyM a Ty
 typeCheck _   Zero = return Nat
 typeCheck env (Suc e) = assertTy env e Nat >> return Nat
 typeCheck env (V a) = MaybeT . return $ M.lookup a env
@@ -78,7 +78,7 @@ data ExpC a = VC a
             | ZeroC
             deriving (Eq, Functor, Foldable, Traversable)
 
-closConv :: (Show a, Eq a, Ord a, Enum a) => Exp a -> Gen a (ExpC a)
+closConv :: Ord a => Exp a -> Gen a (ExpC a)
 closConv (V a) = return (VC a)
 closConv Zero = return ZeroC
 closConv (Suc e) = SucC <$> closConv e
@@ -120,7 +120,7 @@ data ExpL a = VL a
 trivLetBody :: Scope Int ExpL a
 trivLetBody = fromJust . closed . abstract (const $ Just 0) $ VL ()
 
-llift :: (Eq a, Ord a, Enum a) => ExpC a -> Gen a (ExpL a)
+llift :: Eq a => ExpC a -> Gen a (ExpL a)
 llift (VC a) = return (VL a)
 llift ZeroC = return ZeroL
 llift (SucC e) = SucL <$> llift e
@@ -135,7 +135,7 @@ llift (LamC t clos bind) = do
   clos' <- mapM llift clos
   let bind' = abstract (flip elemIndex vs) body
   return (LetL [NRecL t clos' bind'] trivLetBody)
-llift e@(FixC t clos bind) = do
+llift (FixC t clos bind) = do
   vs <- replicateM (length clos + 1) gen
   body <- llift $ instantiate (VC . (!!) vs) bind
   clos' <- mapM llift clos
