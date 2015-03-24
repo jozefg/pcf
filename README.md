@@ -1,7 +1,8 @@
 ## pcf
 
-A one file compiler for PCF to C. It's currently about 275j lines of
-compiler and 75 lines of extremely boring instances.
+A one file compiler for PCF to C. It's currently about 275 lines of
+compiler and 75 lines of extremely boring instances. The compiler is
+fully explained in [this blog post][post].
 
 ## What's PCF
 
@@ -75,43 +76,43 @@ We can then chuck this into the compiler and it will spit out the
 following C code
 
 ``` c
-    sized_ptr _21(sized_ptr * _30)
+    tagged_ptr _21(tagged_ptr * _30)
     {
-        sized_ptr _31 = dec(_30[1]);
-        sized_ptr _35 = EMPTY;
+        tagged_ptr _31 = dec(_30[1]);
+        tagged_ptr _35 = EMPTY;
         if (isZero(_30[1]))
         {
             _35 = _30[2];
         }
         else
         {
-            sized_ptr _32 = apply(_30[0], _31);
-            sized_ptr _33 = apply(_32, _30[2]);
-            sized_ptr _34 = inc(_33);
+            tagged_ptr _32 = apply(_30[0], _31);
+            tagged_ptr _33 = apply(_32, _30[2]);
+            tagged_ptr _34 = inc(_33);
             _35 = _34;
         }
         return _35;
     }
-    sized_ptr _18(sized_ptr * _36)
+    tagged_ptr _18(tagged_ptr * _36)
     {
-        sized_ptr _37 = mkClos(_21, 2, _36[0], _36[1]);
+        tagged_ptr _37 = mkClos(_21, 2, _36[0], _36[1]);
         return _37;
     }
-    sized_ptr _16(sized_ptr * _38)
+    tagged_ptr _16(tagged_ptr * _38)
     {
-        sized_ptr _39 = mkClos(_18, 1, _38[0]);
+        tagged_ptr _39 = mkClos(_18, 1, _38[0]);
         return _39;
     }
-    sized_ptr _29(sized_ptr * _40)
+    tagged_ptr _29(tagged_ptr * _40)
     {
-        sized_ptr _41 = mkClos(_16, 0);
-        sized_ptr _42 = fixedPoint(_41);
-        sized_ptr _43 = mkZero();
-        sized_ptr _49 = inc(_43);
-        sized_ptr _50 = apply(_42, _49);
-        sized_ptr _51 = mkZero();
-        sized_ptr _56 = inc(_51);
-        sized_ptr _57 = apply(_50, _56);
+        tagged_ptr _41 = mkClos(_16, 0);
+        tagged_ptr _42 = fixedPoint(_41);
+        tagged_ptr _43 = mkZero();
+        tagged_ptr _49 = inc(_43);
+        tagged_ptr _50 = apply(_42, _49);
+        tagged_ptr _51 = mkZero();
+        tagged_ptr _56 = inc(_51);
+        tagged_ptr _57 = apply(_50, _56);
         return _57;
     }
     int main()
@@ -122,3 +123,5 @@ following C code
 
 Which when run with `preamble.c` pasted on top it prints out `2`. As
 you'd hope.
+
+[post]: http://jozefg.bitbucket.org/posts/2015-03-24-pcf.html
