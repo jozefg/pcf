@@ -97,7 +97,7 @@ tagged_ptr fixedPoint(tagged_ptr f, size_t i){
   c->args[c->numArgs - 1] = sized_dummy;
   tagged_ptr res = c->fun(c->args);
 
-  if(res.blackhole) exit(1);
+  if(*res.blackhole) exit(1);
 
   memcpy(sized_dummy.ptr, res.ptr, i);
   *sized_dummy.blackhole = 0;
