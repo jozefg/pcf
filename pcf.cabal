@@ -6,9 +6,11 @@ description:         PCF is a small programming language with higher order
                      statically tpyed and turing complete (general
                      recursion and all that). This compiler transformers
                      a PCF expression into a file of C code that when run
-                     outputs the answer. It is mostly intended as a
+                     outputs the answer.
+
+                     It is mostly intended as a
                      demonstration of how to write such a compiler. The
-                     curious reader should look at the <http://jozefg.bitbucket.org/posts/2015-03-24-pcf.html writeup>
+                     curious reader should look at the <http://jozefg.bitbucket.org/posts/2015-03-24-pcf.html writeup>.
 license:             MIT
 license-file:        LICENSE
 author:              Danny Gratzer
@@ -26,11 +28,11 @@ library
   exposed-modules:     Language.Pcf
   other-modules:       Paths_pcf
   build-depends:       base >=4.0 && <5
-                     , bound
+                     , bound == 1.*
                      , c-dsl
-                     , containers
+                     , containers >= 0.5
                      , monad-gen
-                     , mtl
+                     , mtl == 2.*
                      , prelude-extras
                      , transformers
                      , void
