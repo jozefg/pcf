@@ -8,7 +8,7 @@ description:         PCF is a small programming language with higher order
                      a PCF expression into a file of C code that when run
                      outputs the answer. It is mostly intended as a
                      demonstration of how to write such a compiler. The
-                     curious reader should look at http://jozefg.bitbucket.org/posts/2015-03-24-pcf.html
+                     curious reader should look at the <http://jozefg.bitbucket.org/posts/2015-03-24-pcf.html writeup>
 license:             MIT
 license-file:        LICENSE
 author:              Danny Gratzer

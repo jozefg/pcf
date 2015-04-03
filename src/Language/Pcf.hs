@@ -259,6 +259,11 @@ topc (FauxCTop i numArgs body) = do
   where indexArg binds i = binds ! fromIntegral i
         args binds na = map (VFC . indexArg binds) [0..na - 1]
 
+-- | Given an expression where free variables are integers, convert it
+-- to C. This function doesn't include all of the runtime system in
+-- the translation unit which makes it unsuitable for running all on
+-- its own. It's primarly for inspecting the copmiled result of a
+-- given expression.
 compile :: Exp Integer -> Maybe CTranslUnit
 compile e = runGen . runMaybeT $ do
   assertTy M.empty e Nat
@@ -274,12 +279,17 @@ compile e = runGen . runMaybeT $ do
         makeCMain entry =
           fun [intTy] "main"[] $ hBlock ["call"#[i2e entry]]
 
-output :: Exp Integer -> IO ()
+-- | Compiles ane expression using 'compile'. If we can compile
+-- program this function returns an @Just s@ action which returns this
+-- where @s@ is a runnable C program which outputs the result. If
+-- there was a type error, this gives back 'Nothing'.
+output :: Exp Integer -> IO (Maybe String)
 output e = case compile e of
-  Nothing -> putStrLn "It didn't compile"
-  Just p  -> do
-    getDataFileName "src/preamble.c" >>= readFile >>= putStrLn
-    print . pretty $ p
+  Nothing -> return Nothing
+  Just p  -> Just $ do
+    rts <- getDataFileName "src/preamble.c" >>= readFile
+    return . Just $ rts ++ '\n' : pretty p
+
 
 -------------------------------------------------------------------
 ------------------- Extremely Boring Instances --------------------
