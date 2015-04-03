@@ -286,9 +286,9 @@ compile e = runGen . runMaybeT $ do
 output :: Exp Integer -> IO (Maybe String)
 output e = case compile e of
   Nothing -> return Nothing
-  Just p  -> Just $ do
+  Just p  -> do
     rts <- getDataFileName "src/preamble.c" >>= readFile
-    return . Just $ rts ++ '\n' : pretty p
+    return . Just $ rts ++ '\n' : show (pretty p)
 
 
 -------------------------------------------------------------------

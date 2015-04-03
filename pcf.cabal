@@ -1,5 +1,5 @@
 name:                pcf
-version:             0.1.0.0
+version:             0.1.0.1
 synopsis:            A one file compiler for PCF
 description:         PCF is a small programming language with higher order
                      functions, natural numbers, and recursion. It is
