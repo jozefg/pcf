@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE LambdaCase, OverloadedStrings #-}
-module Pcf (Ty(..), Exp(..), compile, output) where
+module Language.Pcf (Ty(..), Exp(..), compile, output) where
 import           Bound
 import           Control.Applicative
 import           Control.Monad

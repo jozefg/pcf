@@ -20,7 +20,7 @@ data-files:          src/preamble.c
 cabal-version:       >=1.10
 library
   hs-source-dirs:      src
-  exposed-modules:     Pcf
+  exposed-modules:     Language.Pcf
   other-modules:       Paths_pcf
   build-depends:       base >=4.0 && <5
                      , bound
