@@ -1,6 +1,14 @@
 name:                pcf
 version:             0.1.0.0
 synopsis:            A one file compiler for PCF
+description:         PCF is a small programming language with higher order
+                     functions, natural numbers, and recursion. It is
+                     statically tpyed and turing complete (general
+                     recursion and all that). This compiler transformers
+                     a PCF expression into a file of C code that when run
+                     outputs the answer. It is mostly intended as a
+                     demonstration of how to write such a compiler. The
+                     curious reader should look at http://jozefg.bitbucket.org/posts/2015-03-24-pcf.html
 license:             MIT
 license-file:        LICENSE
 author:              Danny Gratzer
@@ -8,11 +16,12 @@ maintainer:          jozefg@cmu.edu
 category:            Compiler
 build-type:          Simple
 extra-source-files:  README.md
-                   , src/preamble.c
+data-files:          src/preamble.c
 cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Pcf
+  other-modules:       Paths_pcf
   build-depends:       base >=4.0 && <5
                      , bound
                      , c-dsl

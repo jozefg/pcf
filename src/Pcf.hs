@@ -17,6 +17,7 @@ import           Data.String
 import           Data.Traversable          hiding (mapM)
 import           Language.C.DSL
 import           Prelude.Extras
+import           Paths_pcf
 
 data Ty = Arr Ty Ty
         | Nat
@@ -276,7 +277,9 @@ compile e = runGen . runMaybeT $ do
 output :: Exp Integer -> IO ()
 output e = case compile e of
   Nothing -> putStrLn "It didn't compile"
-  Just p  -> print . pretty $ p
+  Just p  -> do
+    getDataFileName "src/preamble.c" >>= readFile >>= putStrLn
+    print . pretty $ p
 
 -------------------------------------------------------------------
 ------------------- Extremely Boring Instances --------------------
