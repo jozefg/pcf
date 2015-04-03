@@ -18,6 +18,9 @@ build-type:          Simple
 extra-source-files:  README.md
 data-files:          src/preamble.c
 cabal-version:       >=1.10
+source-repository head
+  type:                git
+  location:            http://github.com/jozefg/pcf
 library
   hs-source-dirs:      src
   exposed-modules:     Language.Pcf
