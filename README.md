@@ -2,7 +2,7 @@
 
 A one file compiler for PCF to C. It's currently about 275 lines of
 compiler and 75 lines of extremely boring instances. The compiler is
-fully explained in [this blog post][post].
+fully explained in `explanation.md`.
 
 ## What's PCF
 
@@ -123,5 +123,3 @@ following C code
 
 Which when run with `preamble.c` pasted on top it prints out `2`. As
 you'd hope.
-
-[post]: http://jozefg.bitbucket.org/posts/2015-03-24-pcf.html
