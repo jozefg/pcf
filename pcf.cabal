@@ -27,9 +27,9 @@ library
   hs-source-dirs:      src
   exposed-modules:     Language.Pcf
   other-modules:       Paths_pcf
-  build-depends:       base >=4.0 && <5
+  build-depends:       base ==4.*
                      , bound
---                      , c-dsl
+                     , c-dsl
                      , containers >= 0.5
                      , monad-gen
                      , mtl

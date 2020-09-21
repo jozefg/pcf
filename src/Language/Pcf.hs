@@ -1,8 +1,8 @@
 {-# LANGUAGE FlexibleContexts, TemplateHaskell #-}
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE LambdaCase, OverloadedStrings #-}
--- module Language.Pcf (Ty(..), Exp(..), compile, output) where
-module Language.Pcf where
+module Language.Pcf (Ty(..), Exp(..), compile, output) where
+
 import           Bound
 import           Control.Applicative
 import           Control.Monad
@@ -17,7 +17,7 @@ import           Data.Maybe                (fromJust)
 import qualified Data.Set                  as S
 import           Data.String
 import           Data.Traversable          hiding (mapM)
--- import           Language.C.DSL
+import           Language.C.DSL
 import           Paths_pcf
 import Data.Deriving
 
@@ -218,97 +218,97 @@ fauxc (LetL binds e) = do
 --------------- Conversion to Real C -------------------
 --------------------------------------------------------
 
--- type RealCM = WriterT [CBlockItem] (Gen Integer)
+type RealCM = WriterT [CBlockItem] (Gen Integer)
 
--- i2d :: Integer -> CDeclr
--- i2d = fromString . ('_':) . show
+i2d :: Integer -> CDeclr
+i2d = fromString . ('_':) . show
 
--- i2e :: Integer -> CExpr
--- i2e = var . fromString . ('_':) . show
+i2e :: Integer -> CExpr
+i2e = var . fromString . ('_':) . show
 
--- taggedTy :: CDeclSpec
--- taggedTy = CTypeSpec "tagged_ptr"
+taggedTy :: CDeclSpec
+taggedTy = CTypeSpec "tagged_ptr"
 
--- tellDecl :: CExpr -> RealCM CExpr
--- tellDecl e = do
---   i <- gen
---   tell [CBlockDecl $ decl taggedTy (i2d i) $ Just e]
---   return (i2e i)
+tellDecl :: CExpr -> RealCM CExpr
+tellDecl e = do
+  i <- gen
+  tell [CBlockDecl $ decl taggedTy (i2d i) $ Just e]
+  return (i2e i)
 
--- realc :: FauxC CExpr -> RealCM CExpr
--- realc (VFC e) = return e
--- realc (AppFC f a) = ("apply" #) <$> mapM realc [f, a] >>= tellDecl
--- realc ZeroFC = tellDecl $ "mkZero" # []
--- realc (SucFC e) = realc e >>= tellDecl . ("inc"#) . (:[])
--- realc (IfzFC i t e) = do
---   outi <- realc i
---   deci <- tellDecl ("dec" # [outi])
---   let e' = instantiate1 (VFC deci) e
---   (outt, blockt) <- lift . runWriterT $ (realc t)
---   (oute, blocke) <- lift . runWriterT $ (realc e')
---   out <- tellDecl "EMPTY"
---   let branch b tempOut =
---         CCompound [] (b ++ [CBlockStmt . liftE $ out <-- tempOut]) undefNode
---       ifStat =
---         cifElse ("isZero"#[outi]) (branch blockt outt) (branch blocke oute)
---   tell [CBlockStmt ifStat]
---   return out
--- realc (LetFC binds bind) = do
---   bindings <- mapM goBind binds
---   realc $ instantiate (VFC . (bindings !!)) bind
---   where sizeOf Int = "INT_SIZE"
---         sizeOf Clos = "CLOS_SIZE"
---         goBind (NRecFC i cs) =
---           ("mkClos" #) <$> (i2e i :) . (fromIntegral (length cs) :)
---                        <$> mapM realc cs
---                        >>= tellDecl
---         goBind (RecFC t i cs) = do
---           f <- ("mkClos" #) <$> (i2e i :) . (fromIntegral (length cs) :)
---                             <$> mapM realc cs
---                             >>= tellDecl
---           tellDecl ("fixedPoint"#[f, sizeOf t])
+realc :: FauxC CExpr -> RealCM CExpr
+realc (VFC e) = return e
+realc (AppFC f a) = ("apply" #) <$> mapM realc [f, a] >>= tellDecl
+realc ZeroFC = tellDecl $ "mkZero" # []
+realc (SucFC e) = realc e >>= tellDecl . ("inc"#) . (:[])
+realc (IfzFC i t e) = do
+  outi <- realc i
+  deci <- tellDecl ("dec" # [outi])
+  let e' = instantiate1 (VFC deci) e
+  (outt, blockt) <- lift . runWriterT $ (realc t)
+  (oute, blocke) <- lift . runWriterT $ (realc e')
+  out <- tellDecl "EMPTY"
+  let branch b tempOut =
+        CCompound [] (b ++ [CBlockStmt . liftE $ out <-- tempOut]) undefNode
+      ifStat =
+        cifElse ("isZero"#[outi]) (branch blockt outt) (branch blocke oute)
+  tell [CBlockStmt ifStat]
+  return out
+realc (LetFC binds bind) = do
+  bindings <- mapM goBind binds
+  realc $ instantiate (VFC . (bindings !!)) bind
+  where sizeOf Int = "INT_SIZE"
+        sizeOf Clos = "CLOS_SIZE"
+        goBind (NRecFC i cs) =
+          ("mkClos" #) <$> (i2e i :) . (fromIntegral (length cs) :)
+                       <$> mapM realc cs
+                       >>= tellDecl
+        goBind (RecFC t i cs) = do
+          f <- ("mkClos" #) <$> (i2e i :) . (fromIntegral (length cs) :)
+                            <$> mapM realc cs
+                            >>= tellDecl
+          tellDecl ("fixedPoint"#[f, sizeOf t])
 
--- topc :: FauxCTop CExpr -> Gen Integer CFunDef
--- topc (FauxCTop i numArgs body) = do
---   binds <- gen
---   let getArg = (!!) (args (i2e binds) numArgs)
---   (out, block) <- runWriterT . realc $ instantiate getArg body
---   return $
---     fun [taggedTy] ('_' : show i) [decl taggedTy $ ptr (i2d binds)] $
---       CCompound [] (block ++ [CBlockStmt . creturn $ out]) undefNode
---   where indexArg binds i = binds ! fromIntegral i
---         args binds na = map (VFC . indexArg binds) [0..na - 1]
+topc :: FauxCTop CExpr -> Gen Integer CFunDef
+topc (FauxCTop i numArgs body) = do
+  binds <- gen
+  let getArg = (!!) (args (i2e binds) numArgs)
+  (out, block) <- runWriterT . realc $ instantiate getArg body
+  return $
+    fun [taggedTy] ('_' : show i) [decl taggedTy $ ptr (i2d binds)] $
+      CCompound [] (block ++ [CBlockStmt . creturn $ out]) undefNode
+  where indexArg binds i = binds ! fromIntegral i
+        args binds na = map (VFC . indexArg binds) [0..na - 1]
 
--- -- | Given an expression where free variables are integers, convert it
--- -- to C. This function doesn't include all of the runtime system in
--- -- the translation unit which makes it unsuitable for running all on
--- -- its own. It's primarly for inspecting the copmiled result of a
--- -- given expression.
--- compile :: Exp Integer -> Maybe CTranslUnit
--- compile e = runGen . runMaybeT $ do
---   assertTy M.empty e Nat
---   funs <- lift $ pipe e
---   return . transUnit . map export $ funs
---   where pipe e = do
---           simplified <- closConv e >>= llift
---           (main, funs) <- runWriterT $ fauxc simplified
---           i <- gen
---           let topMain = FauxCTop i 1 (abstract (const Nothing) main)
---               funs' = map (i2e <$>) (funs ++ [topMain])
---           (++ [makeCMain i]) <$> mapM topc funs'
---         makeCMain entry =
---           fun [intTy] "main"[] $ hBlock ["call"#[i2e entry]]
+-- | Given an expression where free variables are integers, convert it
+-- to C. This function doesn't include all of the runtime system in
+-- the translation unit which makes it unsuitable for running all on
+-- its own. It's primarly for inspecting the copmiled result of a
+-- given expression.
+compile :: Exp Integer -> Maybe CTranslUnit
+compile e = runGen . runMaybeT $ do
+  assertTy M.empty e Nat
+  funs <- lift $ pipe e
+  return . transUnit . map export $ funs
+  where pipe e = do
+          simplified <- closConv e >>= llift
+          (main, funs) <- runWriterT $ fauxc simplified
+          i <- gen
+          let topMain = FauxCTop i 1 (abstract (const Nothing) main)
+              funs' = map (i2e <$>) (funs ++ [topMain])
+          (++ [makeCMain i]) <$> mapM topc funs'
+        makeCMain entry =
+          fun [intTy] "main"[] $ hBlock ["call"#[i2e entry]]
 
--- -- | Compiles ane expression using 'compile'. If we can compile
--- -- program this function returns an @Just s@ action which returns this
--- -- where @s@ is a runnable C program which outputs the result. If
--- -- there was a type error, this gives back 'Nothing'.
--- output :: Exp Integer -> IO (Maybe String)
--- output e = case compile e of
---   Nothing -> return Nothing
---   Just p  -> do
---     rts <- getDataFileName "src/preamble.c" >>= readFile
---     return . Just $ rts ++ '\n' : show (pretty p)
+-- | Compiles ane expression using 'compile'. If we can compile
+-- program this function returns an @Just s@ action which returns this
+-- where @s@ is a runnable C program which outputs the result. If
+-- there was a type error, this gives back 'Nothing'.
+output :: Exp Integer -> IO (Maybe String)
+output e = case compile e of
+  Nothing -> return Nothing
+  Just p  -> do
+    rts <- getDataFileName "src/preamble.c" >>= readFile
+    return . Just $ rts ++ '\n' : show (pretty p)
 
 
 -------------------------------------------------------------------
