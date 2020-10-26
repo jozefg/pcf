@@ -255,13 +255,13 @@ which gives us an actual `Clos a`. Now for the third step we have
 `rebind`.
 
 `rebind` maps a free variable to `Maybe Int`. It maps a free variable
-to it's binding occurrence it has one here.  This boils down to using
+to its binding occurrence if has one.  This boils down to using
 `elemIndex` to look up somethings position in the `Clos` we just built
 up. We also have a special case for when the variable we're looking at
 is the "argument" of the function we're fixing. In this case we want
-to map it to the last thing we're binding, which is just
-`length n`. To capture the "try this and then that" semantics we use
-the alternative instance for `Maybe` which works wonderfully.
+to map it to the last thing we're binding, which is just `length
+n`. To capture the "try this and then that" semantics we use the
+alternative instance for `Maybe` which works wonderfully.
 
 With this, we've removed implicit closures from our language: one
 of the passes on our way to C.
@@ -291,7 +291,7 @@ Here's our new language.
                 deriving (Eq, Functor, Foldable, Traversable)
 ```
 
-Much here is the same except we've romved both lambdas and fixpoints
+Much here is the same except we've removed both lambdas and fixpoints
 and replaced them with `LetL`. `LetL` works over bindings which are
 either recursive (`Fix`) or nonrecursive (`Lam`). Lambda lifting in
 this compiler is rather simplistic in how it lifts lambdas: we just
@@ -492,14 +492,14 @@ To lift a binding all we do is generate a globally unique identifier
 for the toplevel. Once we have that we that we can unwrap the
 particular binding we're looking at. This is going to comprise the
 body of the `TopC` function we're building. Since we need it to be
-`FauxC` code as well we recurse on it. No we have a bunch of faux-C
+`FauxC` code as well, we recurse on it. No we have a bunch of faux-C
 code for the body of the toplevel function. We then just repackage the
 body up into a binding (a `FauxCTop` needs one) and use `tell` to make
 a note of it. Once we've done that we return the stripped down let
 binding that just remembers the guid that we created for the toplevel
 function.
 
-In an example, this code transformers
+In an example, this code transforms
 
 ``` haskell
     let x = λ (x : τ). ... in
@@ -601,7 +601,7 @@ The first few cases for conversion are nice and straightforward.
 We take advantage of the fact that `realc` returns it's result and we
 can almost make this look like the applicative cases we had
 before. One particularly slick case is how `Suc` works. We compute the
-value of `e` and apply the result to `suc`. We then feed this
+value of `e` and apply the result to `inc`. We then feed this
 expression into `tellDecl` which binds it to a fresh variable and
 returns the variable. Haskell is pretty slick.
 
@@ -683,7 +683,7 @@ Next, we have a function for converting a faux C function into an
 actual function definition. This is the function that we use `realc`
 in.
 
-```haskel
+``` haskell
     topc :: FauxCTop CExpr -> Gen Integer CFunDef
     topc (FauxCTop i numArgs body) = do
       binds <- gen
