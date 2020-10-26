@@ -160,7 +160,7 @@ said it would so we use `assertTy`. For a lambda we infer the body
 type and return a function from the given argument type to the body
 type.
 
-```
+``` haskell
     typeCheck env (Ifz i t e) = do
       assertTy env i Nat
       ty <- typeCheck env t
@@ -443,7 +443,7 @@ lifting out of the program. Thus we use `WriterT` to gather a lift of
 toplevel functions as we traverse the program. Other than that this is
 much like what we've seen before.
 
-```
+``` haskell
     type FauxCM a = WriterT [FauxCTop a] (Gen a)
 
     fauxc :: ExpL Integer -> FauxCM Integer (FauxC Integer)

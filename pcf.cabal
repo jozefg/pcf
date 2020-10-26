@@ -27,13 +27,13 @@ library
   hs-source-dirs:      src
   exposed-modules:     Language.Pcf
   other-modules:       Paths_pcf
-  build-depends:       base >=4.0 && <5
-                     , bound == 1.*
+  build-depends:       base ==4.*
+                     , bound
                      , c-dsl
                      , containers >= 0.5
                      , monad-gen
-                     , mtl == 2.*
-                     , prelude-extras
+                     , mtl
                      , transformers
                      , void
+                     , deriving-compat
   default-language:    Haskell2010

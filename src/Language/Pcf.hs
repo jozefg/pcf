@@ -1,6 +1,8 @@
+{-# LANGUAGE FlexibleContexts, TemplateHaskell #-}
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE LambdaCase, OverloadedStrings #-}
 module Language.Pcf (Ty(..), Exp(..), compile, output) where
+
 import           Bound
 import           Control.Applicative
 import           Control.Monad
@@ -16,12 +18,12 @@ import qualified Data.Set                  as S
 import           Data.String
 import           Data.Traversable          hiding (mapM)
 import           Language.C.DSL
-import           Prelude.Extras
 import           Paths_pcf
+import Data.Deriving
 
 data Ty = Arr Ty Ty
         | Nat
-        deriving Eq
+        deriving (Eq, Show)
 
 data Exp a = V a
            | App (Exp a) (Exp a)
@@ -30,7 +32,12 @@ data Exp a = V a
            | Fix Ty (Scope () Exp a)
            | Suc (Exp a)
            | Zero
-           deriving (Eq, Functor, Foldable, Traversable)
+           deriving (Functor, Foldable, Traversable)
+
+deriveShow1 ''Exp
+deriveShow ''Exp
+deriveEq1 ''Exp
+deriveEq ''Exp
 
 --------------------------------------------------------
 --------------- Type Checking --------------------------
@@ -77,7 +84,7 @@ data ExpC a = VC a
             | IfzC (ExpC a) (ExpC a) (Scope () ExpC a)
             | SucC (ExpC a)
             | ZeroC
-            deriving (Eq, Functor, Foldable, Traversable)
+            deriving (Functor, Foldable, Traversable)
 
 closConv :: Ord a => Exp a -> Gen a (ExpC a)
 closConv (V a) = return (VC a)
@@ -109,14 +116,16 @@ closConv (Lam t bind) = do
 
 data BindL a = RecL Ty [ExpL a] (Scope Int ExpL a)
              | NRecL Ty [ExpL a] (Scope Int ExpL a)
-             deriving (Eq, Functor, Foldable, Traversable)
+             deriving (Functor, Foldable, Traversable)
+
+
 data ExpL a = VL a
             | AppL (ExpL a) (ExpL a)
             | LetL [BindL a] (Scope Int ExpL a)
             | IfzL (ExpL a) (ExpL a) (Scope () ExpL a)
             | SucL (ExpL a)
             | ZeroL
-            deriving (Eq, Functor, Foldable, Traversable)
+            deriving (Functor, Foldable, Traversable)
 
 trivLetBody :: Scope Int ExpL a
 trivLetBody = fromJust . closed . abstract (const $ Just 0) $ VL ()
@@ -153,17 +162,28 @@ type NumArgs = Int
 data BindTy = Int | Clos deriving Eq
 
 data FauxCTop a = FauxCTop Integer NumArgs (Scope Int FauxC a)
-                deriving (Eq, Functor, Foldable, Traversable)
+                deriving (Functor, Foldable, Traversable)
+
 data BindFC a = NRecFC Integer [FauxC a]
               | RecFC BindTy Integer [FauxC a]
-              deriving (Eq, Functor, Foldable, Traversable)
+              deriving (Functor, Foldable, Traversable)
+
 data FauxC a = VFC a
              | AppFC (FauxC a) (FauxC a)
              | IfzFC (FauxC a) (FauxC a) (Scope () FauxC a)
              | LetFC [BindFC a] (Scope Int FauxC a)
              | SucFC (FauxC a)
              | ZeroFC
-             deriving (Eq, Functor, Foldable, Traversable)
+             deriving (Functor, Foldable, Traversable)
+
+deriveEq1 ''FauxCTop
+deriveEq ''FauxCTop
+
+deriveEq1 ''FauxC
+deriveEq ''FauxC
+
+deriveEq1 ''BindFC
+deriveEq ''BindFC
 
 type FauxCM a = WriterT [FauxCTop a] (Gen a)
 
@@ -295,7 +315,6 @@ output e = case compile e of
 ------------------- Extremely Boring Instances --------------------
 -------------------------------------------------------------------
 
-instance Eq1 Exp where
 instance Applicative Exp where
   pure = return
   (<*>) = ap
@@ -309,7 +328,6 @@ instance Monad Exp where
   Suc e >>= f = Suc (e >>= f)
   Zero >>= _ = Zero
 
-instance Eq1 ExpC where
 instance Applicative ExpC where
   pure = return
   (<*>) = ap
@@ -323,7 +341,6 @@ instance Monad ExpC where
   SucC e >>= f = SucC (e >>= f)
   ZeroC >>= _ = ZeroC
 
-instance Eq1 ExpL where
 instance Applicative ExpL where
   pure = return
   (<*>) = ap
@@ -338,7 +355,6 @@ instance Monad ExpL where
     where go (RecL t es scope) = RecL t (map (>>= f) es) (scope >>>= f)
           go (NRecL t es scope) = NRecL t (map (>>= f) es) (scope >>>= f)
 
-instance Eq1 FauxC where
 instance Applicative FauxC where
   pure = return
   (<*>) = ap
